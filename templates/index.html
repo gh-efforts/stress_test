@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SGLang Test Launcher</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+        section {
+            margin-bottom: 2em;
+            padding: 1em;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1em;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            background-color: #eee;
+        }
+        textarea, input {
+            width: 100%;
+            margin-bottom: 15px;
+            font-family: monospace;
+        }
+        button {
+            padding: 10px 15px;
+            margin-right: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #node-logs {
+            margin-top: 30px;
+            border-top: 1px solid #ccc;
+            padding-top: 20px;
+        }
+        .log-box {
+            background: #f9f9f9;
+            padding: 10px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            margin-top: 5px;
+        }
+        .container {
+            display: grid;
+            grid-template-areas:
+                "menu content";
+            grid-template-columns: 1fr 3fr;
+            gap: 5px;
+            background-color: #fff;
+        }
+        .container > div.menu {
+            padding: 1em;
+            border-radius: 5px;
+            grid-area: menu;
+        }
+        .container > div.content {
+            grid-area: content;
+        }
+
+        details {
+            border: 1px solid #aaa;
+            border-radius: 4px;
+            padding: 0.5em 0.5em 0;
+        }
+
+        summary {
+            font-weight: bold;
+            margin: -0.5em -0.5em 0;
+            padding: 0.5em;
+        }
+
+        details[open] {
+            padding: 0.5em;
+        }
+
+        details[open] summary {
+            border-bottom: 1px solid #aaa;
+            margin-bottom: 0.5em;
+        }
+    </style>
+</head>
+<body>
+    <section>
+        <h2>SGLang Stress Test Launcher</h2>
+        <form id="testForm">
+            <label for="nodes">Nodes (separated by |):</label>
+            <input type="text" id="nodes" name="nodes" value="{{ default_nodes }}">
+
+            <label for="common_cmd">Common Command:</label>
+            <textarea id="common_cmd" name="common_cmd" rows="10">{{ default_common_cmd }}</textarea>
+
+            <label for="test_cmd">Test Command:</label>
+            <textarea id="test_cmd" name="test_cmd" rows="8">{{ default_test_cmd }}</textarea>
+
+            <label for="params">Params (separated by |):</label>
+            <textarea id="params" name="params" rows="5">{{ default_params }}</textarea>
+
+            <label for="export_cmd">Export Commands (separated by |):</label>
+            <textarea id="export_cmd" name="export_cmd" rows="5">{{ default_export_cmd }}</textarea>
+
+            <label for="log_timeout">Log Timeout:</label>
+            <input type="text" id="log_timeout" name="log_timeout" value="{{ default_log_timeout }}">
+
+            <label for="test_timeout">Test Timeout:</label>
+            <input type="text" id="test_timeout" name="test_timeout" value="{{ default_test_timeout }}">
+
+            <button type="button" onclick="startTest()">Start Testing</button>
+            <button type="button" onclick="cleanNodes()">Clean Nodes</button>
+            <div id="test-status" style="margin-top: 10px; font-weight: bold;"></div>
+        </form>
+    </section>
+
+    <!-- Section 1: Start Service Logs -->
+    <section>
+        <h3>Start Service Logs</h3>
+        <div id="node-logs">
+            {% for node in node_list %}
+            <details ontoggle="if (this.open) viewNodeLog('{{ node }}', {{ loop.index0 }})">
+                <summary>{{ node }}</summary>
+                <div class="log-box" id="log-{{ loop.index0 }}">Start Service Logs appear here</div>
+            </details>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Section 2: Test Log -->
+    <section>
+        <h3>Test Log</h3>
+        <details ontoggle="fetchTestLog()">
+            <summary>View Test Log</summary>
+            <div class="log-box" id="test-log">Test Log appears here</div>
+        </details>
+    </section>
+
+    <!-- Section 3: Test Results -->
+    <section>
+        <h3>Test Results</h3>
+        <div id="results-status" style="margin: 5px 0; font-weight: bold;"></div>
+        <div id="test-results">Test Results appears here</div>
+    </section>
+
+    <!-- Section 4: Failure Count -->
+    <section>
+        <h3>Failure Count</h3>
+        <div id="failures-status" style="margin: 5px 0; font-weight: bold;"></div>
+        <details ontoggle="loadFailures()">
+            <summary>Details</summary>
+            <div id="failure-counts">Failure Counts appears here</div>
+        </details>
+    </section>
+
+    <script>
+        let logInterval = null;
+
+        async function startTest() {
+            const form = document.getElementById('testForm');
+            const formData = new FormData(form);
+            const nodes = formData.get("nodes").split("|").map(n => n.trim()).filter(n => n);
+
+            try {
+                const response = await fetch('/run', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                alert("Test started.");
+
+                const statusEl = document.getElementById("test-status");
+                statusEl.style.color = "green";
+                statusEl.textContent = "Test is running...";
+
+                if (statusPoller) clearInterval(statusPoller);
+                statusPoller = setInterval(pollTestStatus, 5000);
+
+                const nodeLogsDiv = document.getElementById("node-logs");
+                nodeLogsDiv.innerHTML = "";
+
+                nodes.forEach((node, index) => {
+                    const details = document.createElement("details");
+                    details.setAttribute("ontoggle", `if (this.open) viewNodeLog('${node}', ${index})`);
+
+                    const summary = document.createElement("summary");
+                    summary.textContent = node;
+
+                    const logBox = document.createElement("div");
+                    logBox.className = "log-box";
+                    logBox.id = `log-${index}`;
+                    logBox.textContent = "No logs yet";
+
+                    details.appendChild(summary);
+                    details.appendChild(logBox);
+                    nodeLogsDiv.appendChild(details);
+                });
+
+                if (logInterval) clearInterval(logInterval);
+                logInterval = setInterval(() => {
+                    refreshAllLogs();
+                    refreshTestLogIfOpen();
+                }, 5000);
+            } catch (err) {
+                console.error("Error starting test:", err);
+                alert("Failed to start test.");
+                const statusEl = document.getElementById("test-status");
+                statusEl.style.color = "red";
+                statusEl.textContent = "Failed to start test.";
+            }
+        }
+
+        async function cleanNodes() {
+            const formData = new FormData();
+            formData.append("nodes", document.getElementById("nodes").value);
+
+            try {
+                const response = await fetch('/clean', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                alert("Node cleanup started.");
+            } catch (err) {
+                console.error("Error cleaning nodes:", err);
+                alert("Failed to clean nodes.");
+            }
+        }
+
+        let statusPoller = null;
+
+        function pollTestStatus() {
+            fetch('/status')
+                .then(res => res.json())
+                .then(data => {
+                    const statusEl = document.getElementById("test-status");
+                    const statusText = data.running ? "Test is running..." : "Test completed.";
+                    const statusColor = data.running ? "green" : "blue";
+
+                    statusEl.style.color = statusColor;
+                    statusEl.textContent = statusText;
+
+                    document.getElementById("results-status").style.color = statusColor;
+                    document.getElementById("results-status").textContent = statusText;
+                    document.getElementById("failures-status").style.color = statusColor;
+                    document.getElementById("failures-status").textContent = statusText;
+
+                    if (!data.running) {
+                        clearInterval(statusPoller);
+                        statusPoller = null;
+                        loadResults();
+                        loadFailures();
+                    }
+                })
+                .catch(err => {
+                    console.error("Failed to poll status:", err);
+                });
+        }
+
+        async function viewNodeLog(node, index) {
+            try {
+                const response = await fetch(`/logs?node=${encodeURIComponent(node)}`);
+                const data = await response.text();
+                document.getElementById(`log-${index}`).textContent = data || '[No logs available]';
+            } catch (err) {
+                console.error(`Error fetching logs for ${node}:`, err);
+                document.getElementById(`log-${index}`).textContent = '[Error fetching logs]';
+            }
+        }
+
+        async function fetchTestLog() {
+            try {
+                const response = await fetch("/test-log");
+                const data = await response.json();
+                document.getElementById("test-log").textContent = data.log;
+            } catch (err) {
+                console.error("Error fetching test log:", err);
+                document.getElementById("test-log").textContent = "Error fetching log.";
+            }
+        }
+
+        function refreshAllLogs() {
+            const detailsList = document.querySelectorAll('#node-logs details');
+            detailsList.forEach((detailsEl, index) => {
+                if (detailsEl.open) {
+                    const summary = detailsEl.querySelector('summary');
+                    const nodeName = summary.textContent.trim();
+                    viewNodeLog(nodeName, index);
+                }
+            });
+        }
+
+        function refreshTestLogIfOpen() {
+            const testLogDetails = document.querySelector('#test-log').closest('details');
+            if (testLogDetails && testLogDetails.open) {
+                fetchTestLog();
+            }
+        }
+
+        async function loadResults() {
+            try {
+                const res1 = await fetch('/test_results');
+                const results = await res1.json();
+                const resultDiv = document.getElementById('test-results');
+                console.log('Fetched test results:', results);
+
+                if (results.length === 0) {
+                    resultDiv.innerHTML = '<p>No test results available.</p>';
+                    return;
+                }
+
+                resultDiv.innerHTML = ''; // Clear existing results
+                results.forEach((row, index) => {
+                    const config = row.config || `Config ${index + 1}`;
+                    const dataKeys = Object.keys(row).filter(k => k !== 'config');
+
+                    const details = document.createElement('details');
+                    details.ontoggle = function () {
+                        if (this.open) {
+                            this.querySelector('.content').innerHTML = `
+                                <table>
+                                    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                                    <tbody>
+                                        ${dataKeys.map(k => `
+                                            <tr><td>${k}</td><td>${row[k]}</td></tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            `;
+                        }
+                    };
+                    details.innerHTML = `
+                        <summary>${config}</summary>
+                        <div class="content" style="margin-top: 10px;">Loading</div>
+                    `;
+                    resultDiv.appendChild(details);
+                });
+            } catch (err) {
+                console.error("Error loading results:", err);
+                document.getElementById('test-results').innerHTML = '<p>Error loading test results.</p>';
+            }
+        }
+
+        async function loadFailures() {
+            try {
+                const res2 = await fetch('/failure_counts');
+                const counts = await res2.json();
+                console.log('Fetched failure results:', counts);
+                const failDiv = document.getElementById('failure-counts');
+
+                if (Object.keys(counts).length === 0) {
+                    failDiv.innerHTML = '<p>No failures recorded.</p>';
+                } else {
+                    let html = '<table><thead><tr><th>Parameter</th><th>Failure Count</th></tr></thead><tbody>';
+                    for (const [param, count] of Object.entries(counts)) {
+                        html += `<tr><td>${param}</td><td>${count}</td></tr>`;
+                    }
+                    html += '</tbody></table>';
+                    failDiv.innerHTML = html;
+                }
+            } catch (err) {
+                console.error("Error loading failures:", err);
+                document.getElementById('failure-counts').innerHTML = '<p>Error loading failure counts.</p>';
+            }
+        }
+        window.onload = loadResults;
+    </script>
+</body>
+</html>
