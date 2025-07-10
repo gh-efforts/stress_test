@@ -1,5 +1,7 @@
 #!/bin/bash
 fail_file="/var/log/test_sglang/failures/failures.jsonl"
+mkdir -p "$(dirname "$file")"
+touch "$file"
 
 # 清理函数
 clean_node() {
