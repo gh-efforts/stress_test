@@ -1,4 +1,5 @@
 #!/bin/bash
+fail_file="/var/log/test_sglang/failures/failures.jsonl"
 
 # 清理函数
 clean_node() {
@@ -49,7 +50,6 @@ wait_for_ready_and_run_test() {
       echo -e "\033[31m错误：等待服务启动超时。参数：$1\033[0m"
       return 1
     fi
-
   done
 }
 
@@ -91,6 +91,19 @@ fi
 exec > "$LOG_FILE" 2>&1
 
 echo "脚本开始执行..."
+
+# ensure directories exist and cleanup files
+fail_file_path="/var/log/test_sglang/failures"
+results_file_path="/var/log/test_sglang/results"
+history_file_path="/var/log/test_sglang/history"
+fail_file="${fail_file_path}/failures.jsonl"
+
+ssh "${nodes[0]}" "mkdir -p '$results_file_path' '$fail_file_path' '$history_file_path' && rm -f '$results_file_path'/*.jsonl && echo '[]' > '$fail_file'"
+
+# indicate test start on nodes
+for i in "${!nodes[@]}"; do
+  ssh ${nodes[$i]} "echo '[TEST START]' > /var/log/test_sglang/node_status_${nodes[$i]}.log"
+done
 
 fail_list=()
 
@@ -150,15 +163,27 @@ for (( idx=0; idx<max_idx; idx++ )); do
             head -n -1 $json_file > \$tmpfile || true; \
             last_line=\$(tail -n 1 $json_file); \
             python3 -c \"import json; \
-            line=json.loads('\$last_line'); \
-            line.update({'export_cmd': '$export_cmd', 'param': '$param'}); \
-            print(json.dumps(line))\" >> \$tmpfile; \
+            line = json.loads('\$last_line'); \
+            output_tp = line.get('output_throughput', 0); \
+            input_tp = line.get('input_throughput', 0); \
+            total_tp = output_tp + input_tp; \
+            new_line = { \
+              'total_throughput': total_tp, \
+              'output_throughput': output_tp, \
+              'input_throughput': input_tp, \
+              **{k: v for k, v in line.items() if k not in ['output_throughput', 'input_throughput']} \
+            }; \
+            new_line['export_cmd'] = '$export_cmd'; \
+            new_line['param'] = '$param'; \
+            print(json.dumps(new_line))\" >> \$tmpfile; \
             mv \$tmpfile $json_file"
           break
         fi
       else
-        b=$((b+1))
+        b=$((b+2))
         fail_list+=("$param")
+        fail_list+=("$export_cmd")
+        ssh "${nodes[0]}" "echo '[\"$param\", \"$export_cmd\"]' >> '$fail_file'"
         echo -e "\033[31m服务启动失败，清理并继续下一个参数...\033[0m"
         # clean_node ${nodes[0]}
         break
@@ -186,13 +211,14 @@ for (( idx=0; idx<max_idx; idx++ )); do
 
     # fi
   else
-    b=$((b+1))
+    b=$((b+2))
     fail_list+=("$param")
+    fail_list+=("$export_cmd")
+    ssh "${nodes[0]}" "echo '[\"$param\", \"$export_cmd\"]' >> '$fail_file'"
     echo -e "\033[31m服务启动失败，清理并继续下一个参数...\033[0m"
     # clean_node ${nodes[0]}
     continue
   fi
-  
 done
 
 # 等待后台任务提交完成
@@ -200,11 +226,10 @@ echo -e "\n\033[32mSuccess:$a;Fail:$b,Fail list:"${fail_list[@]}"\033[0m"
 echo -e "\n\033[32m测试数据保存在“/root/test_sglang/”文件夹下\033[0m"
 echo -e "\n\033[32m所有参数的服务测试完成！\033[0m"
 
-# Save fail_list to JSON file
-fail_json="/var/log/test_sglang/failures.json"
-ssh ${nodes[0]} "mkdir -p /var/log/test_sglang"
-fail_list_json=$(python3 -c 'import sys, json; print(json.dumps(sys.argv[1:]))' "${fail_list[@]}")
-ssh ${nodes[0]} "echo '$fail_list_json' > $fail_json"
+# indicate test end on nodes
+for i in "${!nodes[@]}"; do
+  ssh ${nodes[$i]} "echo '[TEST END]' > /var/log/test_sglang/node_status_${nodes[$i]}.log"
+done
 
 # echo "[$1] 清理run_sglang_muti_nodes_test.sh进程..."
 ssh ${nodes[0]} "ps -ef | grep 'run_sglang_muti_nodes_test.sh' | grep -v grep | awk '{print \$2}' | xargs -r kill -9 2>/dev/null || :"
