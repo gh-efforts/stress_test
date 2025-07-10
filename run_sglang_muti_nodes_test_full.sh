@@ -24,10 +24,7 @@ nohup python3 -m sglang.launch_server \
 --trust-remote-code \
 --nnodes 2 \
 --port 50000 \
---host 0.0.0.0 \
---attention-backend fa3 \
---disable-cuda-graph  \
---enable-p2p-check"
+--host 0.0.0.0 "
 
 # 测试命令
 test_command="conda activate sglang; \
@@ -37,21 +34,28 @@ nohup python3 -m sglang.bench_serving \
 --backend sglang \
 --dataset-path /media/nvme/ShareGPT_V3_unfiltered_cleaned_split.json \
 --dataset-name sharegpt \
---num-prompts 10 \
---max-concurrency 10 \
+--num-prompts 5000 \
+--max-concurrency 5000 \
 --port 50000"
 
 # 参数列表(在这里修改可变参数)
 params=(
-  "--data-parallel-size 2 --enable-dp-attention"
-  "--data-parallel-size n --enable-dp-attention"
-  "--data-parallel-size 4 --enable-dp-attention"
-  "--data-parallel-size 8 --enable-dp-attention"
+  "--schedule-policy lpm"
+  "--schedule-policy random"
+  "--schedule-policy fcfs"
+  "--schedule-policy dfs-weight"
+  "--attention-backend aiter"
+  "--attention-backend fa3"
+  "--attention-backend flashmla"
+  "--attention-backend flashinfer"
+  "--attention-backend intel_amx"
+  "--attention-backend triton"
+  "--attention-backend torch_native"
+  "--attention-backend cutlass_mla"
+  "--data-parallel-size 16 --enable-dp-attention --load-balance-method round_robin"
+  "--data-parallel-size 16 --enable-dp-attention --load-balance-method round_robin shortest_queue"
 )
 export_cmd=(
-  "export SGL_ENABLE_JIT_DEEPGEMM=0"
-  "export NCCL_DEBUG=INFO" 
-  "export SGLANG_HACK_DEEPEP_NEW_MODE=0"
   "export NCCL_DEBUG=INFO"
   )
 fail_list=()
