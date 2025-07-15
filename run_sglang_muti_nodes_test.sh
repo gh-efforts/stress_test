@@ -188,26 +188,7 @@ for (( idx=0; idx<max_idx; idx++ )); do
       fi
     done
     continue
-    
-    # if timeout $test_timeout tail -F "/var/log/test0.log" | grep -m 1 "Serving Benchmark Result"; then
-    #   echo "测试已经结束，10s后关闭服务..."
-    #   sleep 10
 
-    #   # Append export_cmd to the last JSON line
-    #   param_key=$(echo "$param" | tr ' -' _)
-    #   json_file="/var/log/test_sglang/${param_key}.jsonl"
-
-    #   # Modify the last line: append export_cmd to JSON
-    #   ssh ${nodes[0]} "tmpfile=\$(mktemp); \
-    #     head -n -1 $json_file > \$tmpfile || true; \
-    #     last_line=\$(tail -n 1 $json_file); \
-    #     python3 -c \"import json; \
-    #     line=json.loads('\$last_line'); \
-    #     line.update({'export_cmd': '$export_cmd', 'param': '$param'}); \
-    #     print(json.dumps(line))\" >> \$tmpfile; \
-    #     mv \$tmpfile $json_file"
-
-    # fi
   else
     b=$((b+2))
     fail_list+=("$param")
