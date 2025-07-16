@@ -68,33 +68,51 @@
         .container > div.content {
             grid-area: content;
         }
-
         details {
             border: 1px solid #aaa;
             border-radius: 4px;
             padding: 0.5em 0.5em 0;
         }
-
         summary {
             font-weight: bold;
             margin: -0.5em -0.5em 0;
             padding: 0.5em;
         }
-
         details[open] {
             padding: 0.5em;
         }
-
         details[open] summary {
             border-bottom: 1px solid #aaa;
             margin-bottom: 0.5em;
+        }
+        pre {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size:smaller;
         }
     </style>
 </head>
 <body>
     <section>
         <h2>SGLang Stress Test Launcher</h2>
+    </section>
+    
+    <section>
+        <h3>Check Nodes</h3>
+        <form id="nodeForm">
+            <label for="nodesCheck">Nodes (separated by |):</label>
+            <input type="text" id="nodesCheck" name="nodesCheck" value="{{ default_nodes }}">
+            <button type="button" onclick="checkNodes()">Check Nodes</button>
+            <div id="status-container"></div>
+        </form>
+    </section>
+
+    <section>
+        <h3>Test Form</h3>
         <form id="testForm">
+            <button type="button" onclick="startTest()">Start Testing</button>
+            <button type="button" onclick="cleanNodes()">Clean Nodes</button>
+            <div id="test-status" style="margin-top: 10px; font-weight: bold;"></div>
+
             <label for="nodes">Nodes (separated by |):</label>
             <input type="text" id="nodes" name="nodes" value="{{ default_nodes }}">
 
@@ -115,14 +133,9 @@
 
             <label for="test_timeout">Test Timeout:</label>
             <input type="text" id="test_timeout" name="test_timeout" value="{{ default_test_timeout }}">
-
-            <button type="button" onclick="startTest()">Start Testing</button>
-            <button type="button" onclick="cleanNodes()">Clean Nodes</button>
-            <div id="test-status" style="margin-top: 10px; font-weight: bold;"></div>
         </form>
     </section>
 
-    <!-- Section 1: Start Service Logs -->
     <section>
         <h3>Start Service Logs</h3>
         <div id="node-logs">
@@ -135,7 +148,6 @@
         </div>
     </section>
 
-    <!-- Section 2: Test Log -->
     <section>
         <h3>Test Log</h3>
         <details ontoggle="fetchTestLog()">
@@ -144,14 +156,12 @@
         </details>
     </section>
 
-    <!-- Section 3: Test Results -->
     <section>
         <h3>Test Results</h3>
         <div id="results-status" style="margin: 5px 0; font-weight: bold;"></div>
         <div id="test-results">Test Results appears here</div>
     </section>
 
-    <!-- Section 4: Failure Count -->
     <section>
         <h3>Failure Count</h3>
         <div id="failures-status" style="margin: 5px 0; font-weight: bold;"></div>
@@ -161,7 +171,51 @@
         </details>
     </section>
 
+    <section>
+        <h3>Test Run History</h3>
+        <div id="test-history">Test Run History appears here</div>
+    </section>
+
     <script>
+        let nodeStatusInterval = null;
+
+        async function checkNodes() {
+            const input = document.getElementById("nodesCheck").value;
+            const nodes = input.split("|").map(n => n.trim()).filter(n => n);
+            const container = document.getElementById("status-container");
+            container.innerHTML = "Checking...";
+
+            try {
+                const res = await fetch(`/node_status?nodes=${encodeURIComponent(nodes.join("|"))}`);
+                const data = await res.json();
+
+                let html = '<table><thead><tr><th>Node</th><th>Status</th></tr></thead><tbody>';
+                for (const [node, status] of Object.entries(data)) {
+                    const color = status.includes("ode available") ? "green" : "red";
+                    html += `<tr><td>${node}</td><td style="color:${color}; font-weight:bold;">${status}</td></tr>`;
+                }
+                html += '</tbody></table>';
+
+                container.innerHTML = html;
+            } catch (err) {
+                console.error("Error checking nodes:", err);
+                container.innerHTML = '<p style="color:red;">Failed to check node status.</p>';
+            }
+        }
+
+        function startNodeStatusPolling() {
+            if (nodeStatusInterval) clearInterval(nodeStatusInterval);
+            checkNodes();
+            nodeStatusInterval = setInterval(checkNodes, 10000);
+        }
+
+        function stopNodeStatusPolling() {
+            if (nodeStatusInterval) {
+                clearInterval(nodeStatusInterval);
+                nodeStatusInterval = null;
+            }
+        }
+
         let logInterval = null;
 
         async function startTest() {
@@ -170,19 +224,21 @@
             const nodes = formData.get("nodes").split("|").map(n => n.trim()).filter(n => n);
 
             try {
+                alert("Test started.");
+                stopNodeStatusPolling();
+
                 const response = await fetch('/run', {
                     method: 'POST',
                     body: formData
                 });
                 const data = await response.json();
-                alert("Test started.");
 
                 const statusEl = document.getElementById("test-status");
                 statusEl.style.color = "green";
                 statusEl.textContent = "Test is running...";
 
                 if (statusPoller) clearInterval(statusPoller);
-                statusPoller = setInterval(pollTestStatus, 5000);
+                statusPoller = setInterval(pollTestStatus, 10000);
 
                 const nodeLogsDiv = document.getElementById("node-logs");
                 nodeLogsDiv.innerHTML = "";
@@ -204,11 +260,18 @@
                     nodeLogsDiv.appendChild(details);
                 });
 
-                if (logInterval) clearInterval(logInterval);
+                // start the interval for refreshing
+                if (logInterval) {
+                    clearInterval(logInterval);
+                    logInterval = null;
+                }
                 logInterval = setInterval(() => {
                     refreshAllLogs();
                     refreshTestLogIfOpen();
-                }, 5000);
+                    loadResults();
+                    refreshFailuresIfOpen();
+                }, 10000);
+
             } catch (err) {
                 console.error("Error starting test:", err);
                 alert("Failed to start test.");
@@ -245,8 +308,8 @@
                     const statusText = data.running ? "Test is running..." : "Test completed.";
                     const statusColor = data.running ? "green" : "blue";
 
-                    statusEl.style.color = statusColor;
                     statusEl.textContent = statusText;
+                    statusEl.style.color = statusColor;
 
                     document.getElementById("results-status").style.color = statusColor;
                     document.getElementById("results-status").textContent = statusText;
@@ -256,8 +319,17 @@
                     if (!data.running) {
                         clearInterval(statusPoller);
                         statusPoller = null;
+                        
+                        if (logInterval) {
+                            clearInterval(logInterval);
+                            logInterval = null;
+                        }
+
                         loadResults();
                         loadFailures();
+                        refreshAllLogs();
+                        fetchTestLog();
+                        loadTestHistory();
                     }
                 })
                 .catch(err => {
@@ -268,22 +340,30 @@
         async function viewNodeLog(node, index) {
             try {
                 const response = await fetch(`/logs?node=${encodeURIComponent(node)}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
                 const data = await response.text();
-                document.getElementById(`log-${index}`).textContent = data || '[No logs available]';
+                document.getElementById(`log-${index}`).textContent = data || 'No logs available';
             } catch (err) {
                 console.error(`Error fetching logs for ${node}:`, err);
-                document.getElementById(`log-${index}`).textContent = '[Error fetching logs]';
+                document.getElementById(`log-${index}`).innerHTML = '<p style="color: red;">Error fetching log</p>';
             }
         }
 
         async function fetchTestLog() {
             try {
                 const response = await fetch("/test-log");
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
                 const data = await response.json();
                 document.getElementById("test-log").textContent = data.log;
             } catch (err) {
                 console.error("Error fetching test log:", err);
-                document.getElementById("test-log").textContent = "Error fetching log.";
+                document.getElementById("test-log").innerHTML = '<p style="color: red;">Error fetching log</p>';
             }
         }
 
@@ -307,52 +387,101 @@
 
         async function loadResults() {
             try {
-                const res1 = await fetch('/test_results');
-                const results = await res1.json();
+                const response = await fetch('/test_results');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+
+                const results = await response.json();
                 const resultDiv = document.getElementById('test-results');
                 console.log('Fetched test results:', results);
 
-                if (results.length === 0) {
-                    resultDiv.innerHTML = '<p>No test results available.</p>';
-                    return;
-                }
+                // Save currently open summaries
+                const openSummaries = new Set();
+                resultDiv.querySelectorAll('details[open] > summary').forEach(summary => {
+                    openSummaries.add(summary.textContent.trim());
+                });
 
                 resultDiv.innerHTML = ''; // Clear existing results
+
                 results.forEach((row, index) => {
                     const config = row.config || `Config ${index + 1}`;
-                    const dataKeys = Object.keys(row).filter(k => k !== 'config');
+                    const priorityKeys = ['total_throughput', 'output_throughput', 'input_throughput'];
+                    const allKeys = Object.keys(row).filter(k => k !== 'config');
+                    const dataKeys = [...priorityKeys, ...allKeys.filter(k => !priorityKeys.includes(k))];
 
                     const details = document.createElement('details');
-                    details.ontoggle = function () {
-                        if (this.open) {
-                            this.querySelector('.content').innerHTML = `
-                                <table>
-                                    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
-                                    <tbody>
-                                        ${dataKeys.map(k => `
-                                            <tr><td>${k}</td><td>${row[k]}</td></tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            `;
-                        }
-                    };
-                    details.innerHTML = `
-                        <summary>${config}</summary>
-                        <div class="content" style="margin-top: 10px;">Loading</div>
-                    `;
+                    const summary = document.createElement('summary');
+                    summary.textContent = config;
+
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'content';
+                    contentDiv.style.marginTop = '10px';
+
+                    if (openSummaries.has(config)) {
+                        details.setAttribute('open', '');
+                        contentDiv.innerHTML = `
+                            <table>
+                                <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                                <tbody>
+                                    ${dataKeys.map(k => {
+                                        const value = row[k];
+                                        const isBold = priorityKeys.includes(k);
+                                        return `<tr>
+                                            <td>${isBold ? `<strong>${k}</strong>` : k}</td>
+                                            <td>${isBold ? `<strong>${value}</strong>` : value}</td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        `;
+                    } else {
+                        contentDiv.textContent = "Loading";
+                    }
+
+                    details.appendChild(summary);
+                    details.appendChild(contentDiv);
+
+                    // Only attach ontoggle handler if not already open
+                    if (!openSummaries.has(config)) {
+                        details.ontoggle = function () {
+                            if (this.open) {
+                                contentDiv.innerHTML = `
+                                    <table>
+                                        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                                        <tbody>
+                                            ${dataKeys.map(k => {
+                                                const value = row[k];
+                                                const isBold = priorityKeys.includes(k);
+                                                return `<tr>
+                                                    <td>${isBold ? `<strong>${k}</strong>` : k}</td>
+                                                    <td>${isBold ? `<strong>${value}</strong>` : value}</td>
+                                                </tr>`;
+                                            }).join('')}
+                                        </tbody>
+                                    </table>
+                                `;
+                            }
+                        };
+                    }
+
                     resultDiv.appendChild(details);
                 });
             } catch (err) {
                 console.error("Error loading results:", err);
-                document.getElementById('test-results').innerHTML = '<p>Error loading test results.</p>';
+                document.getElementById('test-results').innerHTML = '<p style="color: red;">Error loading test results</p>';
             }
         }
 
         async function loadFailures() {
             try {
-                const res2 = await fetch('/failure_counts');
-                const counts = await res2.json();
+                const response = await fetch('/failure_counts');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+                const counts = await response.json();
                 console.log('Fetched failure results:', counts);
                 const failDiv = document.getElementById('failure-counts');
 
@@ -368,10 +497,63 @@
                 }
             } catch (err) {
                 console.error("Error loading failures:", err);
-                document.getElementById('failure-counts').innerHTML = '<p>Error loading failure counts.</p>';
+                document.getElementById('failure-counts').innerHTML = '<p style="color: red;">Error loading failure count</p>';
             }
         }
-        window.onload = loadResults;
+
+        function refreshFailuresIfOpen() {
+            const failuresDetails = document.querySelector('#failure-counts').closest('details');
+            if (failuresDetails && failuresDetails.open) {
+                loadFailures();
+            }
+        }
+
+        async function loadTestHistory() {
+            try {
+                const response = await fetch('/history');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+                const data = await response.json();
+                console.log('Fetched test history:', data);
+
+                const container = document.getElementById('test-history');
+                container.innerHTML = '';
+
+                data.forEach(entry => {
+                    const details = document.createElement('details');
+                    const summary = document.createElement('summary');
+                    const date = new Date(entry.timestamp);
+                    summary.textContent = `[${date.toLocaleString()}]`;
+                    details.appendChild(summary);
+
+                    const info = document.createElement('div');
+                    info.innerHTML = `
+                        <pre><strong>Test Time:</strong> ${date.toLocaleString()}</pre>
+                        <pre><strong>Nodes:</strong> ${entry.nodes}</pre>
+                        <small><p><strong>Common Cmd:</strong> ${entry.common_cmd}</p></small>
+                        <small><p><strong>Test Cmd:</strong> ${entry.test_cmd}</p></small>
+                        <small><p><strong>Params:</strong> ${entry.params}</p></small>
+                        <small><p><strong>Export Cmd:</strong> ${entry.export_cmd}</p></small>
+                        <pre><strong>Log Timeout:</strong> ${entry.log_timeout}</pre>
+                        <pre><strong>Test Timeout:</strong> ${entry.test_timeout}</pre>
+                        <pre><strong>Results:</strong> ${JSON.stringify(entry.results, null, 1)}</pre>
+                        <pre><strong>Failures:</strong> ${JSON.stringify(entry.failures, null, 1)}</pre>
+                    `;
+
+                    details.appendChild(info);
+                    container.appendChild(details);
+                });
+            } catch (err) {
+                document.getElementById('test-history').innerHTML = '<p style="color: red;">Error loading history</p>';
+                console.error("Error loading test history:", err);
+            }
+        }
+        window.onload = function() {
+            loadResults();
+            loadTestHistory();
+        };
     </script>
 </body>
 </html>
