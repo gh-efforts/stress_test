@@ -147,40 +147,36 @@ for (( idx=0; idx<max_idx; idx++ )); do
     # test_file="/var/log/test0.log"
     #if timeout 2000 ssh ${nodes[0]} "tail -F $test_file" | grep -m 1 "Serving Benchmark Result"; then
     while true; do
-      # 使用带超时的read监控日志更新
-      if read -t $log_timeout line < <(ssh ${nodes[0]} "tail -n 0 -F "/var/log/node0.log"" 2>/dev/null); then
-        echo "[日志] $line"
         # 检测测试状态
-        if timeout $test_timeout ssh ${nodes[0]} "tail -F "/var/log/test0.log"" | grep -m 1 "Serving Benchmark Result"; then
-          echo "测试已经结束，10s后关闭服务..."
-          sleep 10
+      if timeout $test_timeout ssh ${nodes[0]} "tail -F "/var/log/test0.log"" | grep -m 1 "Serving Benchmark Result"; then
+        echo "测试已经结束，10s后关闭服务..."
+        sleep 10
 
-          # Append export_cmd to the last JSON line
-          param_key=$(echo "$param" | tr ' -' _)
-          export_cmd_key=$(echo "$export_cmd" | tr ' -' _)
-          json_file="/var/log/test_sglang/${param_key}_${export_cmd_key}.jsonl"
+        # Append export_cmd to the last JSON line
+        param_key=$(echo "$param" | tr ' -' _)
+        export_cmd_key=$(echo "$export_cmd" | tr ' -' _)
+        json_file="/var/log/test_sglang/${param_key}_${export_cmd_key}.jsonl"
 
-          # Modify the last line: append export_cmd to JSON
-          ssh ${nodes[0]} "tmpfile=\$(mktemp); \
-            head -n -1 $json_file > \$tmpfile || true; \
-            last_line=\$(tail -n 1 $json_file); \
-            python3 -c \"import json; \
-            line = json.loads('\$last_line'); \
-            output_tp = line.get('output_throughput', 0); \
-            input_tp = line.get('input_throughput', 0); \
-            total_tp = output_tp + input_tp; \
-            new_line = { \
-              'total_throughput': total_tp, \
-              'output_throughput': output_tp, \
-              'input_throughput': input_tp, \
-              **{k: v for k, v in line.items() if k not in ['output_throughput', 'input_throughput']} \
-            }; \
-            new_line['export_cmd'] = '$export_cmd'; \
-            new_line['param'] = '$param'; \
-            print(json.dumps(new_line))\" >> \$tmpfile; \
-            mv \$tmpfile $json_file"
-          break
-        fi
+        # Modify the last line: append export_cmd to JSON
+        ssh ${nodes[0]} "tmpfile=\$(mktemp); \
+          head -n -1 $json_file > \$tmpfile || true; \
+          last_line=\$(tail -n 1 $json_file); \
+          python3 -c \"import json; \
+          line = json.loads('\$last_line'); \
+          output_tp = line.get('output_throughput', 0); \
+          input_tp = line.get('input_throughput', 0); \
+          total_tp = output_tp + input_tp; \
+          new_line = { \
+            'total_throughput': total_tp, \
+            'output_throughput': output_tp, \
+            'input_throughput': input_tp, \
+            **{k: v for k, v in line.items() if k not in ['output_throughput', 'input_throughput']} \
+          }; \
+          new_line['export_cmd'] = '$export_cmd'; \
+          new_line['param'] = '$param'; \
+          print(json.dumps(new_line))\" >> \$tmpfile; \
+          mv \$tmpfile $json_file"
+        break
       else
         b=$((b+2))
         fail_list+=("$param")

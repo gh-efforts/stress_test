@@ -61,15 +61,16 @@ clean_node() {
   # 清理端口占用
   echo "[$1] 清理端口占用..."
   ssh $1 "fuser -k 30001/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30001) 2>/dev/null"
-  ssh $1 "fuser -k 30002/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30001) 2>/dev/null"
-  ssh $1 "fuser -k 30006/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30001) 2>/dev/null"
-  ssh $1 "fuser -k 50000/tcp 2>/dev/null || kill -9 \$(lsof -t -i:50000) 2>/dev/null"
-  
+  ssh $1 "fuser -k 30002/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30002) 2>/dev/null"
+  ssh $1 "fuser -k 30006/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30006) 2>/dev/null"
+  ssh $1 "fuser -k 30007/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30007) 2>/dev/null"
+  ssh $1 "fuser -k 50005/tcp 2>/dev/null || kill -9 \$(lsof -t -i:50005) 2>/dev/null"
+
   # 清理GPU进程（匹配sglang相关进程）
   echo "[$1] 清理GPU进程..."
   ssh $1 "ps -ef | grep 'python3 -m sglang.launch_server' | grep -v grep | awk '{print \$2}' | xargs -r kill -9 2>/dev/null || :"
-  ssh $1 "ps -ef | grep 'run_sglang_muti_nodes_test.sh' | grep -v grep | awk '{print \$2}' | xargs -r kill -9 2>/dev/null || :"
-  
+  ssh $1 "ps -ef | grep 'python3 -m sglang.bench_serving' | grep -v grep | awk '{print \$2}' | xargs -r kill -9 2>/dev/null || :"
+
   # 二次清理残留CUDA进程
   echo "[$1] 清理残留CUDA进程..."
   ssh $1 "nvidia-smi --query-compute-apps=pid --format=csv,noheader | xargs -r kill -9 2>/dev/null || :"
@@ -79,19 +80,21 @@ clean_node() {
 wait_for_ready_and_run_test() {
   local log_file="/var/log/node0.log"
   local param_key=$(echo "$1" | tr ' -' _)
-  ssh ${nodes[0]} "mkdir -p test_sglang"
-  local json_file="/var/log/test_sglang/${param_key}.jsonl"
+  current_date=$(date +%Y%m%d)
+  # ssh ${nodes[0]} "mkdir -p test_sglang"
+  ssh ${nodes[0]} "mkdir -p "/var/log/test_sglang/$current_date""
+  local json_file="/var/log/test_sglang/$current_date/${param_key}.jsonl"
   echo "$json_file"
   #timeout可能需要修改
-  local timeout_sec=300 
+  local timeout_sec=900
 
-  echo "[Node0] 开始监听日志中的 'The server is fired up and ready to roll!超时：300s"
+  echo "[Node0] 开始监听日志中的 'The server is fired up and ready to roll!超时：900s"
 
   while true; do
     # 使用带超时的read监控日志更新
     if read -t $timeout_sec line < <(ssh ${nodes[0]} "tail -n 0 -F $log_file" 2>/dev/null); then
-      echo "[日志] $line"
-      
+      # echo "[日志] $line"
+
       # 检测就绪消息
       if timeout 2 ssh ${nodes[0]} "tail -F $log_file" | grep -m 1 "The server is fired up and ready to roll!"; then
         echo -e "\033[32m检测到服务就绪，开始测试...\033[0m"
@@ -158,28 +161,38 @@ for (( idx=0; idx<max_idx; idx++ )); do
     #if timeout 2000 ssh ${nodes[0]} "tail -F $test_file" | grep -m 1 "Serving Benchmark Result"; then
     while true; do
       # 使用带超时的read监控日志更新
-      if read -t $log_timeout line < <(ssh ${nodes[0]} "tail -n 0 -F "/var/log/node0.log"" 2>/dev/null); then
-        echo "[日志] $line"
+      # if read -t 900 line < <(ssh ${nodes[0]} "tail -n 0 -F "/var/log/node0.log"" 2>/dev/null); then
+        # echo "[日志] $line"
         # 检测测试状态
-        if timeout $test_timeout ssh ${nodes[0]} "tail -F "/var/log/test0.log"" | grep -m 1 "Serving Benchmark Result"; then
-          echo "测试已经结束，10s后关闭服务..."
-          sleep 10
+      # if timeout 1800 ssh ${nodes[0]} "tail -F "/var/log/test0.log"" | grep -q "Serving Benchmark Result"; then
+      if timeout 1800 ssh ${nodes[0]} 'tail -n 1 -F  /var/log/test0.log |  grep "Serving Benchmark Result" -m 1'; then
+        echo "测试已经结束，10s后关闭服务..."
+        sleep 10
 
-          # Append export_cmd to the last JSON line
-          param_key=$(echo "$param" | tr ' -' _)
-          json_file="/var/log/test_sglang/${param_key}.jsonl"
+        # Append export_cmd to the last JSON line
+        param_key=$(echo "$param" | tr ' -' _)
+        json_file="/var/log/test_sglang/${param_key}.jsonl"
 
-          # Modify the last line: append export_cmd to JSON
-          ssh ${nodes[0]} "tmpfile=\$(mktemp); \
+        # Modify the last line: append export_cmd to JSON
+        ssh ${nodes[0]} "tmpfile=\$(mktemp); \
             head -n -1 $json_file > \$tmpfile || true; \
             last_line=\$(tail -n 1 $json_file); \
             python3 -c \"import json; \
-            line=json.loads('\$last_line'); \
-            line.update({'export_cmd': '$export_cmd', 'param': '$param'}); \
-            print(json.dumps(line))\" >> \$tmpfile; \
+            line = json.loads('\$last_line'); \
+            output_tp = line.get('output_throughput', 0); \
+            input_tp = line.get('input_throughput', 0); \
+            total_tp = output_tp + input_tp; \
+            new_line = { \
+              'total_throughput': total_tp, \
+              'output_throughput': output_tp, \
+              'input_throughput': input_tp, \
+              **{k: v for k, v in line.items() if k not in ['output_throughput', 'input_throughput']} \
+            }; \
+            new_line['export_cmd'] = '$export_cmd'; \
+            new_line['param'] = '$param'; \
+            print(json.dumps(new_line))\" >> \$tmpfile; \
             mv \$tmpfile $json_file"
-          break
-        fi
+        break
       else
         b=$((b+1))
         fail_list+=("$param")
@@ -196,7 +209,7 @@ for (( idx=0; idx<max_idx; idx++ )); do
     # clean_node ${nodes[0]}
     continue
   fi
-  
+
 done
 
 # 等待后台任务提交完成
