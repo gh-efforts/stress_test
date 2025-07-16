@@ -214,7 +214,7 @@ done
 
 # 等待后台任务提交完成
 echo -e "\n\033[32mSuccess:$a;Fail:$b,Fail list:"${fail_list[@]}"\033[0m"
-echo -e "\n\033[32m测试数据保存在“/root/test_sglang/”文件夹下\033[0m"
+echo -e "\n\033[32m测试数据保存在“/var/log/test_sglang/”文件夹下\033[0m"
 echo -e "\n\033[32m所有参数的服务测试完成！\033[0m"
 
 # echo "[$1] 清理run_sglang_muti_nodes_test.sh进程..."
