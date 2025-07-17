@@ -29,7 +29,8 @@ default_export_cmd = (
     "export GLOO_SOCKET_IFNAME=eth0"
 )
 
-default_common_cmd = """source /media/nvme/anaconda3/etc/profile.d/conda.sh; \
+default_common_cmd = """GLOO_SOCKET_IFNAME=eth0; \
+source /media/nvme/anaconda3/etc/profile.d/conda.sh; \
 conda activate sglang; \
 nohup python3 -m sglang.launch_server \
 --model-path /media/nvme/deepseek/DeepSeek-V3-0324 \
@@ -45,7 +46,8 @@ nohup python3 -m sglang.launch_server \
 --port 50000 \
 --host 0.0.0.0"""
 
-default_test_cmd = """source /media/nvme/anaconda3/etc/profile.d/conda.sh; \
+default_test_cmd = """GLOO_SOCKET_IFNAME=eth0; \
+source /media/nvme/anaconda3/etc/profile.d/conda.sh; \
 conda activate sglang; \
 nohup python3 -m sglang.bench_serving \
 --backend sglang \
