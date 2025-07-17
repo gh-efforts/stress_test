@@ -42,7 +42,7 @@ wait_for_ready_and_run_test() {
       
       # 检测就绪消息
       # if timeout 10 ssh ${nodes[0]} "tail -F $log_file" | grep -m 1 "The server is fired up and ready to roll!"; then
-      if ssh ${nodes[0]} "timeout 10 bash -c 'until grep -q \"The server is fired up and ready to roll!\" $log_file; do sleep 1; done'"; then
+      if timeout 2 ssh ${nodes[0]} "tail -F $log_file" | grep -m 1 "The server is fired up and ready to roll!"; then
         echo -e "\033[32m检测到服务就绪，开始测试...\033[0m"
         # 启动测试命令，后台运行
         # ssh ${nodes[0]} "$test_cmd --output-file $json_file > /var/log/test0.log 2>&1 &"
