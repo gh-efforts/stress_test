@@ -33,7 +33,7 @@ default_common_cmd = """GLOO_SOCKET_IFNAME=eth0; \
 source /media/nvme/anaconda3/etc/profile.d/conda.sh; \
 conda activate sglang; \
 nohup python3 -m sglang.launch_server \
---model-path /media/nvme/deepseek/DeepSeek-V3-0324 \
+--model-path /media/nvme/DeepSeek-V3-0324 \
 --tensor-parallel-size 16 \
 --dist-init-addr 192.168.1.28:30001 \
 --trust-remote-code \
