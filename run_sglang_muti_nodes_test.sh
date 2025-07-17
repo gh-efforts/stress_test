@@ -22,12 +22,14 @@ clean_node() {
 }
 
 # 等待“ready to roll”并触发测试
+current_date=$(date +%Y%m%d)
+json_file="/var/log/test_sglang/${current_date}.jsonl"
 wait_for_ready_and_run_test() {
   local log_file="/var/log/node0.log"
   local param_key=$(echo "$1" | tr ' -' _)
   local export_cmd_key=$(echo "$2" | tr ' -' _)
-  ssh ${nodes[0]} "mkdir -p test_sglang"
-  local json_file="/var/log/test_sglang/${param_key}_${export_cmd_key}.jsonl"
+#  ssh ${nodes[0]} "mkdir -p test_sglang"
+#  local json_file="/var/log/test_sglang/${param_key}_${export_cmd_key}.jsonl"
   echo "$json_file"
   local timeout_sec=$log_timeout 
 

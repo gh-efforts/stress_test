@@ -77,13 +77,15 @@ clean_node() {
 }
 
 # 等待“ready to roll”并触发测试
+current_date=$(date +%Y%m%d)
+json_file="/var/log/test_sglang/${current_date}.jsonl"
 wait_for_ready_and_run_test() {
   local log_file="/var/log/node0.log"
   local param_key=$(echo "$1" | tr ' -' _)
   current_date=$(date +%Y%m%d)
   # ssh ${nodes[0]} "mkdir -p test_sglang"
-  ssh ${nodes[0]} "mkdir -p "/var/log/test_sglang/$current_date""
-  local json_file="/var/log/test_sglang/$current_date/${param_key}.jsonl"
+#  ssh ${nodes[0]} "mkdir -p "/var/log/test_sglang/$current_date""
+#  local json_file="/var/log/test_sglang/$current_date/${param_key}.jsonl"
   echo "$json_file"
   #timeout可能需要修改
   local timeout_sec=900
@@ -170,8 +172,8 @@ for (( idx=0; idx<max_idx; idx++ )); do
         sleep 10
 
         # Append export_cmd to the last JSON line
-        param_key=$(echo "$param" | tr ' -' _)
-        json_file="/var/log/test_sglang/${param_key}.jsonl"
+#        param_key=$(echo "$param" | tr ' -' _)
+#        json_file="/var/log/test_sglang/${param_key}.jsonl"
 
         # Modify the last line: append export_cmd to JSON
         ssh ${nodes[0]} "tmpfile=\$(mktemp); \
