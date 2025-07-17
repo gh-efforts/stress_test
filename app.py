@@ -33,13 +33,13 @@ default_common_cmd = """source /media/nvme/anaconda3/etc/profile.d/conda.sh; \
 conda activate sglang; \
 nohup python3 -m sglang.launch_server \
 --model-path /media/nvme/deepseek/DeepSeek-V3-0324 \
---tensor-parallel-size ${#nodes[@]}*8 \
---dist-init-addr 172.31.16.2:30001 \
+--tensor-parallel-size 16 \
+--dist-init-addr 192.168.1.28:30001 \
 --trust-remote-code \
---nnodes ${#nodes[@]} \
+--nnodes 2 \
 --tool-call-parser deepseekv3 \
 --grammar-backend outlines \
---chat-template /media/nvme/workspace/sglang-latest/examples/chat_template/tool_chat_template_deepseekv3.jinja \
+--chat-template /media/nvme/sglang/examples/chat_template/tool_chat_template_deepseekv3.jinja \
 --enable-metrics \
 --enable-cache-report \
 --port 50000 \
