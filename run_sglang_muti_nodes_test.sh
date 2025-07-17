@@ -150,7 +150,8 @@ for (( idx=0; idx<max_idx; idx++ )); do
     #if timeout 2000 ssh ${nodes[0]} "tail -F $test_file" | grep -m 1 "Serving Benchmark Result"; then
     while true; do
         # 检测测试状态
-      if timeout $test_timeout ssh ${nodes[0]} "tail -F "/var/log/test0.log"" | grep -m 1 "Serving Benchmark Result"; then
+#      if timeout $test_timeout ssh ${nodes[0]} "tail -F "/var/log/test0.log"" | grep -m 1 "Serving Benchmark Result"; then
+      if timeout $test_timeout ssh ${nodes[0]} 'tail -n 1 -F  /var/log/test0.log |  grep "Serving Benchmark Result" -m 1'; then
         echo "测试已经结束，10s后关闭服务..."
         sleep 10
 
