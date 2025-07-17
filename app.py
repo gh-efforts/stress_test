@@ -69,7 +69,8 @@ def append_test_history(history):
         safe_json = json_line.replace('\\', '\\\\').replace('"', '\\"')
 
         remote_cmd = (
-            f'python3 -c "with open(\\"/var/log/test_sglang/history/test_history.jsonl\\", \\"a\\") as f: '
+            f'python3 -c "'
+            f'with open(\\"/var/log/test_sglang/history/test_history.jsonl\\", \\"a\\") as f: '
             f'f.write(\\"{safe_json}\\")"'
         )
 
