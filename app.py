@@ -35,7 +35,7 @@ conda activate sglang; \
 nohup python3 -m sglang.launch_server \
 --model-path /media/nvme/DeepSeek-V3-0324 \
 --tensor-parallel-size 16 \
---dist-init-addr 192.168.1.28:30001 \
+--dist-init-addr 14.103.168.91:30001 \
 --trust-remote-code \
 --nnodes 2 \
 --tool-call-parser deepseekv3 \
