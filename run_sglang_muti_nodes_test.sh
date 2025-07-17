@@ -157,9 +157,9 @@ for (( idx=0; idx<max_idx; idx++ )); do
         sleep 10
 
         # Append export_cmd to the last JSON line
-        param_key=$(echo "$param" | tr ' -' _)
-        export_cmd_key=$(echo "$export_cmd" | tr ' -' _)
-        json_file="/var/log/test_sglang/${param_key}_${export_cmd_key}.jsonl"
+#        param_key=$(echo "$param" | tr ' -' _)
+#        export_cmd_key=$(echo "$export_cmd" | tr ' -' _)
+#        json_file="/var/log/test_sglang/${param_key}_${export_cmd_key}.jsonl"
 
         # Modify the last line: append export_cmd to JSON
         ssh ${nodes[0]} "tmpfile=\$(mktemp); \
