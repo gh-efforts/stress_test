@@ -7,6 +7,7 @@ clean_node() {
   ssh $1 "fuser -k 30001/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30001) 2>/dev/null"
   ssh $1 "fuser -k 30002/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30002) 2>/dev/null"
   ssh $1 "fuser -k 30006/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30006) 2>/dev/null"
+  ssh $1 "fuser -k 30007/tcp 2>/dev/null || kill -9 \$(lsof -t -i:30007) 2>/dev/null"
   ssh $1 "fuser -k 50000/tcp 2>/dev/null || kill -9 \$(lsof -t -i:50000) 2>/dev/null"
   
   # 清理GPU进程（匹配sglang相关进程）
