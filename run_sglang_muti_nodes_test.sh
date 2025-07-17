@@ -23,7 +23,7 @@ clean_node() {
 
 # 等待“ready to roll”并触发测试
 current_date=$(date +%Y%m%d)
-json_file="/var/log/test_sglang/${current_date}.jsonl"
+json_file="/var/log/test_sglang/results/${current_date}.jsonl"
 wait_for_ready_and_run_test() {
   local log_file="/var/log/node0.log"
   local param_key=$(echo "$1" | tr ' -' _)
