@@ -182,7 +182,7 @@ for (( idx=0; idx<max_idx; idx++ )); do
           mv \$tmpfile $json_file"
         break
       else
-        b=$((b+2))
+        b=$((b+1))
         fail_list+=("$param")
         fail_list+=("$export_cmd")
         ssh "${nodes[0]}" "echo '[\"$param\", \"$export_cmd\"]' >> '$fail_file'"
@@ -193,7 +193,7 @@ for (( idx=0; idx<max_idx; idx++ )); do
     done
     continue
   else
-    b=$((b+2))
+    b=$((b+1))
     fail_list+=("$param")
     fail_list+=("$export_cmd")
     ssh "${nodes[0]}" "echo '[\"$param\", \"$export_cmd\"]' >> '$fail_file'"
