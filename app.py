@@ -46,7 +46,7 @@ nohup python3 -m sglang.launch_server \
 --port 50000 \
 --host 0.0.0.0"""
 
-default_test_cmd = """GLOO_SOCKET_IFNAME=eth0; \
+default_test_cmd = """conda activate sglang; \
 source /media/nvme/anaconda3/etc/profile.d/conda.sh; \
 conda activate sglang; \
 nohup python3 -m sglang.bench_serving \
